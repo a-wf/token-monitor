@@ -875,6 +875,14 @@ async function collectHistoryOnce(options) {
   };
   const clients = normalizeClientsCsv(options.clients);
   if (options.historyEnabled === false) return null;
+  if (options.preconditionFailureCode) {
+    failureCode = String(options.preconditionFailureCode);
+    if (typeof options.logger === 'function') {
+      options.logger(`history refresh blocked: ${failureCode}`);
+    }
+    reportStatus(false);
+    return null;
+  }
   const histories = [];
   const rawGraphs = [];
   const runGraph = options.runGraph || runTokscaleGraph;
@@ -1119,9 +1127,14 @@ async function collectUsageOnce(options) {
     if (includesCopilot && (!anchorUsed || !targetRequested || targetClients.includes('copilot') || options.includeHistory)) {
       try {
         const collectRows = options.collectCopilotSessionStoreRows || collectCopilotSessionStoreRows;
+        const allTimeStartMs = copilotTimestampMs(allTimeSince);
+        const monthStartMs = new Date(collectedAt.getFullYear(), collectedAt.getMonth(), 1).getTime();
+        const periodReadStartMs = allTimeStartMs > 0
+          ? Math.min(monthStartMs, allTimeStartMs)
+          : 0;
         copilotStoreRows = collectRows({
           homeDir: options.homeDir,
-          sinceMs: options.includeHistory ? 0 : allTimeSince,
+          sinceMs: options.includeHistory ? 0 : periodReadStartMs,
           requireFn: options.requireFn
         });
         const resolvePricing = options.resolveCopilotSessionStorePricing || ((rows) => resolveModelPricing(rows, {
@@ -1503,17 +1516,15 @@ async function collectUsageOnce(options) {
     let copilotHistoryTokscaleKeys = copilotTokscaleKeys;
     let copilotHistoryOwnershipFailed = false;
     if (includesCopilot && copilotStoreRows) {
-      const capDays = Number.isFinite(options.historyCapDays) ? options.historyCapDays : HISTORY_CAP_DAYS;
-      const historyStart = new Date(
-        collectedAt.getFullYear(),
-        collectedAt.getMonth(),
-        collectedAt.getDate() - Math.max(0, capDays - 1)
-      );
-      if (copilotTimestampMs(allTimeSince) > historyStart.getTime()) {
+      const historyStartMs = copilotStoreRows.reduce((earliest, row) => (
+        row.createdAt > 0 && (!earliest || row.createdAt < earliest) ? row.createdAt : earliest
+      ), 0);
+      const allTimeStartMs = copilotTimestampMs(allTimeSince);
+      if (historyStartMs > 0 && (!allTimeStartMs || historyStartMs < allTimeStartMs)) {
         try {
           const historyOwnershipJson = await runTokscaleFn({
             clients: 'copilot',
-            flags: ['--since', localTodayKey(historyStart)],
+            flags: ['--since', localTodayKey(new Date(historyStartMs))],
             commandTimeoutMs,
             signal: options.signal
           });
@@ -1541,6 +1552,9 @@ async function collectUsageOnce(options) {
       promaGraph: includesProma ? buildPromaHistoryGraph({ rows: promaRows || collectPromaRows(), pricingByModel: promaPricing || {} }) : null,
       qoderCnGraph: historyQoderCnGraph || null,
       copilotStoreGraph,
+      preconditionFailureCode: copilotHistoryOwnershipFailed
+        ? 'copilot-history-ownership-failed'
+        : null,
       historyEnabled: options.historyEnabled,
       commandTimeoutMs: options.historyTimeoutMs,
       capDays: options.historyCapDays,

@@ -112,7 +112,7 @@ function readCopilotSessionStoreRows(options = {}) {
     database.exec('PRAGMA busy_timeout = 250');
     const usageColumns = tableColumns(database, 'assistant_usage_events');
     if ([...REQUIRED_USAGE_COLUMNS].some((column) => !usageColumns.has(column))) return [];
-    const usageColumn = (name) => usageColumns.has(name) ? `u.${name}` : '0';
+    const usageColumn = (name, fallback = '0') => usageColumns.has(name) ? `u.${name}` : fallback;
     const sessionColumns = tableColumns(database, 'sessions');
     const hasSessionMetadata = ['id', 'host_type', 'cwd', 'summary'].every((column) => sessionColumns.has(column));
     const selectMetadata = hasSessionMetadata
@@ -126,7 +126,7 @@ function readCopilotSessionStoreRows(options = {}) {
              ${usageColumn('cache_read_tokens')} AS cache_read_tokens,
              ${usageColumn('cache_write_tokens')} AS cache_write_tokens,
              ${usageColumn('reasoning_tokens')} AS reasoning_tokens,
-             ${usageColumn('total_nano_aiu')} AS total_nano_aiu,
+             ${usageColumn('total_nano_aiu', 'NULL')} AS total_nano_aiu,
              u.created_at, ${selectMetadata}
       FROM assistant_usage_events u
       ${joinSessions}

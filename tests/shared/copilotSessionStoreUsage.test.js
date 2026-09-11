@@ -251,3 +251,33 @@ test('Copilot session-store reader surfaces operational schema errors', (t) => {
     /SQLITE_BUSY/
   );
 });
+
+test('older Copilot stores without recorded cost keep static pricing available', { skip: !sqlite }, (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'copilot-session-store-legacy-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const dbPath = path.join(root, 'session-store.db');
+  const database = new sqlite.DatabaseSync(dbPath);
+  database.exec(`
+    CREATE TABLE assistant_usage_events (
+      id INTEGER PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      model TEXT NOT NULL,
+      input_tokens INTEGER,
+      output_tokens INTEGER,
+      created_at TEXT
+    );
+    INSERT INTO assistant_usage_events VALUES (
+      1, 'session-1', 'claude-fable-5.1', 10, 2, '2026-09-11T08:01:00.000Z'
+    );
+  `);
+  database.close();
+
+  const [row] = readCopilotSessionStoreRows({ dbPath, requireFn: () => sqlite });
+  assert.equal(row.recordedCostUsd, null);
+  assert.equal(estimatedRowCost(row, {
+    'claude-fable-5-1': {
+      inputCostPerToken: 2,
+      outputCostPerToken: 3
+    }
+  }), 26);
+});

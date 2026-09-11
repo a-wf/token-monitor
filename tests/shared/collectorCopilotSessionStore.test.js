@@ -142,9 +142,48 @@ test('collector applies all-time Tokscale ownership consistently to narrower per
   assert.equal(summary.today.sessions['copilot:store-only'].totalTokens, 12);
 });
 
+test('Copilot store month usage remains independent of the all-time cutoff', async () => {
+  const now = localMs(2026, 9, 11, 12);
+  const monthStart = localMs(2026, 9, 1);
+  const rows = [{
+    sessionId: 'early-month',
+    model: 'claude-fable-5-1',
+    provider: 'anthropic',
+    input: 10,
+    output: 2,
+    cacheRead: 0,
+    cacheWrite: 0,
+    reasoning: 0,
+    createdAt: localMs(2026, 9, 2, 12),
+    messages: 1
+  }];
+
+  const summary = await collectUsageOnce({
+    clients: 'copilot',
+    allTimeSince: '2026-09-10',
+    commandTimeoutMs: 1000,
+    deviceId: 'copilot-store-month-cutoff-test',
+    now,
+    limitsEnabled: false,
+    historyEnabled: false,
+    wslScanEnabled: false,
+    runTokscale: async () => ({ entries: [] }),
+    collectWslUsage: async () => ({ bundle: emptyWslBundle(), detected: [] }),
+    collectCopilotSessionStoreRows: ({ sinceMs }) => {
+      assert.equal(sinceMs, monthStart);
+      return rows;
+    },
+    resolveCopilotSessionStorePricing: async () => pricing(rows)
+  });
+
+  assert.equal(summary.today.totalTokens, 0);
+  assert.equal(summary.month.totalTokens, 12);
+  assert.equal(summary.allTime.totalTokens, 0);
+});
+
 test('Copilot store history is independent of the all-time cutoff', async () => {
   const now = localMs(2026, 9, 11, 12);
-  const oldDay = localMs(2025, 12, 31, 12);
+  const oldDay = localMs(2024, 1, 15, 12);
   const rows = [{
     sessionId: 'old-store-session',
     model: 'claude-fable-5-1',
@@ -167,6 +206,7 @@ test('Copilot store history is independent of the all-time cutoff', async () => 
     limitsEnabled: false,
     historyEnabled: true,
     includeHistory: true,
+    historyCapDays: 30,
     dailyHistoryArchiveEnabled: false,
     wslScanEnabled: false,
     runTokscale: async ({ flags }) => ({
@@ -182,7 +222,7 @@ test('Copilot store history is independent of the all-time cutoff', async () => 
     }),
     runGraph: async () => ({
       contributions: [{
-        date: '2025-12-31',
+        date: '2024-01-15',
         clients: [{
           client: 'copilot',
           modelId: 'claude-fable-5-1',
@@ -201,6 +241,57 @@ test('Copilot store history is independent of the all-time cutoff', async () => 
   });
 
   assert.equal(summary.allTime.totalTokens, 0);
-  assert.equal(summary.history.daily[0].date, '2025-12-31');
-  assert.equal(summary.history.daily[0].tokens, 12);
+  assert.equal(summary.history.daily.length, 0);
+  assert.equal(summary.history.monthly[0].month, '2024-01');
+  assert.equal(summary.history.monthly[0].tokens, 12);
+  assert.equal(summary.history.summary.totalTokens, 12);
+});
+
+test('Copilot ownership failure marks the history refresh failed', async () => {
+  const now = localMs(2026, 9, 11, 12);
+  const statuses = [];
+  let graphCalls = 0;
+  const rows = [{
+    sessionId: 'old-store-session',
+    model: 'claude-fable-5-1',
+    provider: 'anthropic',
+    input: 10,
+    output: 2,
+    cacheRead: 0,
+    cacheWrite: 0,
+    reasoning: 0,
+    createdAt: localMs(2024, 1, 15, 12),
+    messages: 1
+  }];
+
+  const summary = await collectUsageOnce({
+    clients: 'copilot',
+    allTimeSince: '2026-01-01',
+    commandTimeoutMs: 1000,
+    deviceId: 'copilot-store-history-failure-test',
+    now,
+    limitsEnabled: false,
+    historyEnabled: true,
+    includeHistory: true,
+    dailyHistoryArchiveEnabled: false,
+    wslScanEnabled: false,
+    runTokscale: async ({ flags }) => {
+      if (flags[0] === '--since' && flags[1] !== '2026-01-01') throw new Error('ownership unavailable');
+      return { entries: [] };
+    },
+    runGraph: async () => {
+      graphCalls += 1;
+      return { contributions: [] };
+    },
+    onHistoryStatus: (status) => statuses.push(status),
+    collectWslUsage: async () => ({ bundle: emptyWslBundle(), detected: [] }),
+    collectCopilotSessionStoreRows: () => rows,
+    resolveCopilotSessionStorePricing: async () => pricing(rows)
+  });
+
+  assert.equal(Object.hasOwn(summary, 'history'), false);
+  assert.equal(graphCalls, 0);
+  assert.equal(statuses.length, 1);
+  assert.equal(statuses[0].successAt, null);
+  assert.equal(statuses[0].failureCode, 'copilot-history-ownership-failed');
 });
