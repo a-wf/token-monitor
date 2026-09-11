@@ -1,6 +1,8 @@
 # GitHub Copilot CLI token tracking
 
-Token Monitor automatically detects VS Code Copilot Chat usage from VS Code's local session data through Tokscale 4.5.2 or later. No VS Code settings or OpenTelemetry exporter are required.
+Token Monitor automatically detects VS Code Copilot Chat usage from both the legacy `workspaceStorage/*/chatSessions/` journals and the shared `~/.copilot/session-store.db` used by newer Copilot agent builds. No VS Code settings or OpenTelemetry exporter are required.
+
+The shared session store carries per-request input, output, cache-read, cache-write, and reasoning metadata. Token Monitor uses it only for session/model pairs that are absent from Tokscale's existing Copilot sources, preventing duplicate accounting while covering newer VS Code sessions and models.
 
 The standalone GitHub Copilot CLI still needs its OpenTelemetry file exporter enabled. Token Monitor reads those JSONL files from `~/.copilot/otel/` through Tokscale. OTel begins recording only after it is enabled, so earlier CLI interactions are not backfilled.
 
