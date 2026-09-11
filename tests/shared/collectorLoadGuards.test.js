@@ -1665,6 +1665,7 @@ test('watchPathsForClients includes GitHub Copilot CLI and VS Code chat roots', 
     path.join('.copilot', 'otel'),
     path.join('Library', 'Application Support', 'Code', 'User', 'workspaceStorage')
   ]);
+  fs.writeFileSync(path.join(tmp, '.copilot', 'session-store.db'), '');
   const originalHomedir = os.homedir;
   os.homedir = () => tmp;
   try {
@@ -1674,6 +1675,33 @@ test('watchPathsForClients includes GitHub Copilot CLI and VS Code chat roots', 
     assert.ok(!dirs.includes(path.join(tmp, '.copilot', 'otel')));
     assert.ok(dirs.includes(path.join(tmp, 'Library', 'Application Support', 'Code', 'User', 'workspaceStorage')));
     assert.deepEqual(clientDataDirPresence('copilot'), { copilot: true });
+  } finally {
+    os.homedir = originalHomedir;
+    delete require.cache[collectorPath];
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('watchIgnoreMatcher keeps both Copilot SQLite stores and their WAL files', () => {
+  const tmp = withTmpHome([path.join('.copilot', 'otel')]);
+  const originalHomedir = os.homedir;
+  os.homedir = () => tmp;
+  try {
+    const { watchIgnoreMatcher } = freshCollector();
+    const root = path.join(tmp, '.copilot');
+    const ignored = watchIgnoreMatcher('copilot');
+    for (const name of [
+      'data.db',
+      'data.db-wal',
+      'data.db-shm',
+      'session-store.db',
+      'session-store.db-wal',
+      'session-store.db-shm'
+    ]) {
+      assert.equal(ignored(path.join(root, name)), false, name);
+    }
+    assert.equal(ignored(path.join(root, 'unrelated.db')), true);
+    assert.equal(ignored(path.join(root, 'otel', 'copilot.jsonl')), false);
   } finally {
     os.homedir = originalHomedir;
     delete require.cache[collectorPath];

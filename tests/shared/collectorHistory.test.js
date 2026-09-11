@@ -83,6 +83,25 @@ test('collectHistoryOnce returns null when the graph run throws', async () => {
   ]);
 });
 
+test('collectHistoryOnce reports a precondition failure without publishing partial history', async () => {
+  const statuses = [];
+  let graphCalls = 0;
+  const history = await collectHistoryOnce({
+    clients: 'copilot',
+    preconditionFailureCode: 'copilot-history-ownership-failed',
+    onHistoryStatus: (status) => statuses.push(status),
+    runGraph: async () => {
+      graphCalls += 1;
+      return SAMPLE_GRAPH;
+    }
+  });
+  assert.equal(history, null);
+  assert.equal(graphCalls, 0);
+  assert.deepEqual(statuses.map(({ failureCode, successAt }) => ({ failureCode, successAt })), [
+    { failureCode: 'copilot-history-ownership-failed', successAt: null }
+  ]);
+});
+
 test('collector preserves the last successful history timestamp after a failed refresh', async () => {
   let graphCalls = 0;
   const updates = [];
