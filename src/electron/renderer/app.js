@@ -9117,7 +9117,7 @@ function applyFloatingBubbleState(payload = {}, options = {}) {
   ensureServiceStatusTicker();
 }
 
-const BUBBLE_CONTENT_VALUES = ['icon', 'tokens', 'cost', 'both', 'tokensAll', 'costAll', 'bothAll', 'limitsAllSessions', 'bars', 'barsSession', 'barsWeekly', 'barsAllSessions', 'custom'];
+const BUBBLE_CONTENT_VALUES = ['icon', 'tokens', 'cost', 'both', 'tokensMonth', 'costMonth', 'bothMonth', 'tokensAll', 'costAll', 'bothAll', 'limitsAllSessions', 'bars', 'barsSession', 'barsWeekly', 'barsAllSessions', 'custom'];
 function normalizeTrayContentValue(value) {
   return BUBBLE_CONTENT_VALUES.includes(value) ? value : 'icon';
 }
@@ -9944,7 +9944,7 @@ function syncSettingsForm() {
   els.trayModeInput.disabled = !showTrayIcon;
   els.trayModeInput.checked = showTrayIcon && Boolean(state.settings.trayMode);
   syncHideAppIconControl(showTrayIcon, els.trayModeInput.checked);
-  els.trayContentInput.value = ['tokens', 'cost', 'both', 'tokensAll', 'costAll', 'bothAll', 'limitsAllSessions', 'bars', 'barsSession', 'barsWeekly', 'barsAllSessions', 'icon', 'custom'].includes(state.settings.trayContent) ? state.settings.trayContent : 'tokens';
+  els.trayContentInput.value = ['tokens', 'cost', 'both', 'tokensMonth', 'costMonth', 'bothMonth', 'tokensAll', 'costAll', 'bothAll', 'limitsAllSessions', 'bars', 'barsSession', 'barsWeekly', 'barsAllSessions', 'icon', 'custom'].includes(state.settings.trayContent) ? state.settings.trayContent : 'tokens';
   els.trayContentInput.disabled = !showTrayIcon;
   els.showTrayProviderBadgeInput.checked = state.settings.showTrayProviderBadge === true;
   els.showTrayProviderBadgeInput.disabled = !showTrayIcon;

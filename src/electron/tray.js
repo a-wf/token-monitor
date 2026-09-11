@@ -214,6 +214,7 @@ function buildTrayIcon(options = {}) {
 
 function trayUsagePeriod(contentMode) {
   if (contentMode === 'tokensAll' || contentMode === 'costAll' || contentMode === 'bothAll') return 'allTime';
+  if (contentMode === 'tokensMonth' || contentMode === 'costMonth' || contentMode === 'bothMonth') return 'month';
   if (contentMode === 'tokens' || contentMode === 'cost' || contentMode === 'both') return 'today';
   return null;
 }
@@ -221,7 +222,7 @@ function trayUsagePeriod(contentMode) {
 function pickUsageTrayIconId(stats, contentMode = 'tokens', availableIconIds = []) {
   const periodKey = trayUsagePeriod(contentMode);
   if (!periodKey) return null;
-  const metric = contentMode === 'cost' || contentMode === 'costAll' ? 'cost' : 'tokens';
+  const metric = contentMode === 'cost' || contentMode === 'costMonth' || contentMode === 'costAll' ? 'cost' : 'tokens';
   return pickUsageProviderId(stats, metric, periodKey, availableIconIds);
 }
 

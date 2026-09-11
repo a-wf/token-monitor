@@ -38,6 +38,10 @@ const stats = {
       clients: { claude: 10, codex: 25 },
       clientCosts: { claude: 0.5, codex: 0.2 }
     },
+    month: {
+      clients: { claude: 50, codex: 75 },
+      clientCosts: { claude: 1.5, codex: 1.2 }
+    },
     allTime: {
       clients: { claude: 100, codex: 40 },
       clientCosts: { claude: 1, codex: 2 }
@@ -653,15 +657,18 @@ test('tray main-process actions surface refresh errors and expand a collapsed bu
   assert.match(source, /if \(value === 'tray'\)[\s\S]*?saveSettings\(\);\s*syncFloatingBubbleAvailability\(\);\s*enterTrayMode\(\);/);
 });
 
-test('usage tray icon picks the top token client for day and total token modes', () => {
+test('usage tray icon picks the top token client for day, month and total token modes', () => {
   assert.equal(pickUsageTrayIconId(stats, 'tokens', ['claude', 'codex']), 'codex');
   assert.equal(pickUsageTrayIconId(stats, 'both', ['claude', 'codex']), 'codex');
+  assert.equal(pickUsageTrayIconId(stats, 'tokensMonth', ['claude', 'codex']), 'codex');
+  assert.equal(pickUsageTrayIconId(stats, 'bothMonth', ['claude', 'codex']), 'codex');
   assert.equal(pickUsageTrayIconId(stats, 'tokensAll', ['claude', 'codex']), 'claude');
   assert.equal(pickUsageTrayIconId(stats, 'bothAll', ['claude', 'codex']), 'claude');
 });
 
-test('usage tray icon picks the top cost client for day and total cost modes', () => {
+test('usage tray icon picks the top cost client for day, month and total cost modes', () => {
   assert.equal(pickUsageTrayIconId(stats, 'cost', ['claude', 'codex']), 'claude');
+  assert.equal(pickUsageTrayIconId(stats, 'costMonth', ['claude', 'codex']), 'claude');
   assert.equal(pickUsageTrayIconId(stats, 'costAll', ['claude', 'codex']), 'codex');
 });
 
@@ -1119,6 +1126,13 @@ test('tray cost text uses the selected display currency', () => {
   assert.equal(formatTrayText({ periods: { today: { costUsd: 1, totalTokens: 12_000 } } }, 'cost'), '$1.0000');
   assert.equal(formatTrayText({ periods: { today: { costUsd: 1, totalTokens: 12_000 } } }, 'cost', 'TWD'), 'NT$31.50');
   assert.equal(formatTrayText({ periods: { today: { costUsd: 1, totalTokens: 12_000 } } }, 'both', 'HKD'), '12.0K · HK$7.80');
+});
+
+test('tray month modes use monthly token and cost totals', () => {
+  const monthlyStats = { periods: { month: { costUsd: 12, totalTokens: 345_000 } } };
+  assert.equal(formatTrayText(monthlyStats, 'tokensMonth'), '345.0K');
+  assert.equal(formatTrayText(monthlyStats, 'costMonth'), '$12.00');
+  assert.equal(formatTrayText(monthlyStats, 'bothMonth', 'HKD'), '345.0K · HK$93.60');
 });
 
 test('tray token text follows the shared localized unit setting', () => {
